@@ -1222,6 +1222,31 @@ func TestAccSSMParameter_DataType_ec2Image(t *testing.T) {
 	})
 }
 
+func TestAccSSMParameter_DataType_ec2ImageOverwriteTags(t *testing.T) {
+	ctx := acctest.Context(t)
+	var param awstypes.Parameter
+	rName := acctest.RandomWithPrefix(t, acctest.ResourcePrefix)
+	resourceName := "aws_ssm_parameter.test"
+
+	acctest.ParallelTest(ctx, t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(ctx, t) },
+		ErrorCheck:               acctest.ErrorCheck(t, names.SSMServiceID),
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories,
+		CheckDestroy:             testAccCheckParameterDestroy(ctx, t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccParameterConfig_dataTypeEC2ImageOverwriteTags(rName),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckParameterExists(ctx, t, resourceName, &param),
+					resource.TestCheckResourceAttr(resourceName, "data_type", "aws:ec2:image"),
+					resource.TestCheckResourceAttr(resourceName, acctest.CtTagsPercent, "1"),
+					resource.TestCheckResourceAttr(resourceName, acctest.CtTagsKey1, acctest.CtValue1),
+				),
+			},
+		},
+	})
+}
+
 func TestAccSSMParameter_DataType_ssmIntegration(t *testing.T) {
 	ctx := acctest.Context(t)
 	var param awstypes.Parameter
@@ -1667,6 +1692,24 @@ resource "aws_ssm_parameter" "test" {
   data_type = "aws:ec2:image"
   type      = "String"
   value     = data.aws_ami.amzn2-ami-minimal-hvm-ebs-x86_64.id
+}
+`, rName))
+}
+
+func testAccParameterConfig_dataTypeEC2ImageOverwriteTags(rName string) string {
+	return acctest.ConfigCompose(
+		acctest.ConfigLatestAmazonLinux2HVMEBSX8664AMI(),
+		fmt.Sprintf(`
+resource "aws_ssm_parameter" "test" {
+  name      = %[1]q
+  data_type = "aws:ec2:image"
+  type      = "String"
+  value     = data.aws_ami.amzn2-ami-minimal-hvm-ebs-x86_64.id
+  overwrite = true
+
+  tags = {
+    key1 = "value1"
+  }
 }
 `, rName))
 }

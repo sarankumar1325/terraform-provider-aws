@@ -271,7 +271,20 @@ func resourceParameterCreate(ctx context.Context, d *schema.ResourceData, meta a
 	// Tags and Overwrite set to true, we make an additional API call
 	// to Update the resource's tags if necessary
 	if len(tags) > 0 && input.Tags == nil {
-		if err := createTags(ctx, conn, name, string(awstypes.ResourceTypeForTaggingParameter), tags); err != nil {
+		err := createTags(ctx, conn, name, string(awstypes.ResourceTypeForTaggingParameter), tags)
+
+		// Parameters with data_type "aws:ec2:image" are validated asynchronously
+		// and can't be tagged until validation completes.
+		if errs.IsA[*awstypes.InvalidResourceId](err) && d.Get("data_type").(string) == "aws:ec2:image" {
+			const (
+				timeout = 2 * time.Minute
+			)
+			_, err = tfresource.RetryWhenIsA[any, *awstypes.InvalidResourceId](ctx, timeout, func(ctx context.Context) (any, error) {
+				return nil, createTags(ctx, conn, name, string(awstypes.ResourceTypeForTaggingParameter), tags)
+			})
+		}
+
+		if err != nil {
 			return sdkdiag.AppendErrorf(diags, "setting SSM Parameter (%s) tags: %s", name, err)
 		}
 	}
